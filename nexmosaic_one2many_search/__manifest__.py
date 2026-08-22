@@ -1,7 +1,7 @@
 {
     "name": "One2many Search",
     "summary": "Search configured One2many lines instantly",
-    "version": "19.0.1.0.2",
+    "version": "19.0.1.0.3",
     "category": "Tools",
     "author": "NexMosaic Technologies",
     "license": "LGPL-3",
