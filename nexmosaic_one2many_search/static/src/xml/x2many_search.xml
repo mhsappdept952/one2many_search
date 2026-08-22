@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
     <t t-name="nexmosaic_one2many_search.X2ManyField" t-inherit="web.X2ManyField" t-inherit-mode="extension">
         <xpath expr="//div[hasclass('o_x2m_control_panel')]" position="after">
-            <div t-if="searchState.enabled and props.viewMode === 'list'" class="o_o2m_search mb-2 position-relative" role="search">
+            <div t-if="searchState.enabled and viewMode === 'list'" class="o_o2m_search mb-2 position-relative" role="search">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fa fa-search"/></span>
                     <input type="search" class="form-control" t-att-placeholder="searchState.placeholder"
@@ -40,8 +40,8 @@
                 </span>
             </div>
         </xpath>
-        <xpath expr="//div[hasclass('o_cp_pager')]" position="attributes">
-            <attribute name="t-if">props.record.data[props.name].count &gt; props.record.data[props.name].limit and !hasActiveSearch</attribute>
+        <xpath expr="//Pager" position="attributes">
+            <attribute name="t-if">props.value.count &gt; props.value.limit and !hasActiveSearch</attribute>
         </xpath>
     </t>
 </templates>

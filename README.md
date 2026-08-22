@@ -1,6 +1,6 @@
 # One2many Search
 
-One2many Search adds a native-looking search bar above configured One2many lists in Odoo 17.
+One2many Search adds a native-looking search bar above configured One2many lists in Odoo 16.
 
 Users type a value and select a suggested field before the search runs. The current list then displays only matching lines without changing, deleting, or reordering the underlying relation.
 
@@ -33,7 +33,7 @@ Users type a value and select a suggested field before the search runs. The curr
 
 ## Compatibility
 
-- Odoo 17.0
+- Odoo 16.0
 - Community and Enterprise installations that support custom addons
 - Technical name: `nexmosaic_one2many_search`
 
