@@ -1,11 +1,11 @@
 {
     "name": "One2many Search",
     "summary": "Search configured One2many lines instantly",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Tools",
     "author": "NexMosaic Technologies",
     "license": "LGPL-3",
-    "icon": "/nexmosaic_one2many_search/static/description/search_icon.svg",
+    "icon": "/nexmosaic_one2many_search/static/description/icon.png",
     "depends": ["web"],
     "data": [
         "security/ir.model.access.csv",
