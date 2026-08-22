@@ -1,0 +1,28 @@
+.o_field_x2many .o_o2m_search {
+    max-width: 32rem;
+    margin-bottom: 1rem !important;
+    padding-bottom: 0.25rem;
+}
+
+.o_field_x2many .o_o2m_search_loading {
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.o_field_x2many .o_o2m_search_suggestions {
+    display: block;
+    left: 0;
+    max-width: 32rem;
+    right: auto;
+    top: 100%;
+    z-index: 10;
+}
+
+.o_field_x2many .o_o2m_search_chip_clear {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    line-height: 1;
+    margin-left: 0.25rem;
+    padding: 0;
+}

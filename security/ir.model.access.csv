@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_one2many_search_configuration_user,one2many.search.configuration user,model_one2many_search_configuration,base.group_user,1,0,0,0
+access_one2many_search_configuration_manager,one2many.search.configuration manager,model_one2many_search_configuration,base.group_system,1,1,1,1

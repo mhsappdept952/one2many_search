@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="one2many_search.X2ManyField" t-inherit="web.X2ManyField" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_x2m_control_panel')]" position="after">
+            <div t-if="searchState.enabled and props.viewMode === 'list'" class="o_o2m_search mb-2 position-relative" role="search">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa fa-search"/></span>
+                    <input type="search" class="form-control" t-att-placeholder="searchState.placeholder"
+                           t-att-value="searchState.term" t-on-input="onO2mSearchInput"
+                           t-on-keydown="onO2mSearchKeydown"/>
+                    <button t-if="searchState.term" class="btn btn-outline-secondary" type="button"
+                            title="Clear search" aria-label="Clear search" t-on-click="clearO2mSearch">
+                        <i class="fa fa-times"/>
+                    </button>
+                </div>
+                <div t-if="showO2mSearchSuggestions" class="dropdown-menu show o_o2m_search_suggestions">
+                    <button t-foreach="o2mSearchSuggestions" t-as="searchField" t-key="searchField_index"
+                            class="dropdown-item" type="button"
+                            t-att-class="{'active': searchState.highlightedSuggestion === searchField_index}"
+                            t-on-mousedown.prevent="() => this.selectO2mSearchField(searchField.name, searchField.label)">
+                        Search <strong t-esc="searchField.label"/> for: <em t-esc="searchState.term"/>
+                    </button>
+                </div>
+                <div t-if="hasActiveSearch" class="o_o2m_search_feedback d-flex align-items-center gap-2 mt-1">
+                    <span class="badge text-bg-secondary">
+                        <t t-esc="searchState.selectedFieldLabel"/>: <t t-esc="searchState.selectedTerm"/>
+                        <button type="button" class="o_o2m_search_chip_clear" aria-label="Clear search"
+                                title="Clear search" t-on-click="clearO2mSearch">×</button>
+                    </span>
+                    <span t-if="!searchState.loading" class="text-muted small">
+                        <t t-esc="searchResultCount"/> matching line<t t-if="searchResultCount !== 1">s</t>
+                    </span>
+                </div>
+                <div t-if="hasActiveSearch and !searchState.loading and searchResultCount === 0"
+                     class="o_o2m_search_empty text-muted small mt-1">
+                    No lines match this search.
+                </div>
+                <span t-if="searchState.loading" class="o_o2m_search_loading text-muted small">
+                    <i class="fa fa-spinner fa-spin me-1"/>Searching…
+                </span>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_pager')]" position="attributes">
+            <attribute name="t-if">props.record.data[props.name].count &gt; props.record.data[props.name].limit and !hasActiveSearch</attribute>
+        </xpath>
+    </t>
+</templates>
