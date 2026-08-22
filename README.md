@@ -35,6 +35,7 @@ Users type a value and select a suggested field before the search runs. The curr
 
 - Odoo 19.0
 - Community and Enterprise installations that support custom addons
+- Technical name: `nexmosaic_one2many_search`
 
 ## License
 

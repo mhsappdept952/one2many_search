@@ -5,7 +5,7 @@
     "category": "Tools",
     "author": "NexMosaic Technologies",
     "license": "LGPL-3",
-    "icon": "/one2many_search/static/description/search_icon.svg",
+    "icon": "/nexmosaic_one2many_search/static/description/search_icon.svg",
     "depends": ["web"],
     "data": [
         "security/ir.model.access.csv",
@@ -13,9 +13,9 @@
     ],
     "assets": {
         "web.assets_backend": [
-            "one2many_search/static/src/js/x2many_search.js",
-            "one2many_search/static/src/xml/x2many_search.xml",
-            "one2many_search/static/src/scss/x2many_search.scss",
+            "nexmosaic_one2many_search/static/src/js/x2many_search.js",
+            "nexmosaic_one2many_search/static/src/xml/x2many_search.xml",
+            "nexmosaic_one2many_search/static/src/scss/x2many_search.scss",
         ],
     },
     "images": ["static/description/banner.png"],

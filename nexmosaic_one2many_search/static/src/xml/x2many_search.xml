@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <t t-name="one2many_search.X2ManyField" t-inherit="web.X2ManyField" t-inherit-mode="extension">
+    <t t-name="nexmosaic_one2many_search.X2ManyField" t-inherit="web.X2ManyField" t-inherit-mode="extension">
         <xpath expr="//div[hasclass('o_x2m_control_panel')]" position="after">
             <div t-if="searchState.enabled and props.viewMode === 'list'" class="o_o2m_search mb-2 position-relative" role="search">
                 <div class="input-group">
