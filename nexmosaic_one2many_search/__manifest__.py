@@ -1,7 +1,7 @@
 {
     "name": "One2many Search Widget",
     "summary": "Search configured One2many lines instantly",
-    "version": "19.0.1.0.9",
+    "version": "19.0.1.0.0",
     "category": "Tools",
     "author": "NexMosaic Technologies",
     "license": "LGPL-3",
