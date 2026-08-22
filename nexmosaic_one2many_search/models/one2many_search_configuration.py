@@ -187,7 +187,7 @@ class One2manySearchConfiguration(models.Model):
         # A dedicated list view is a useful fallback for models whose parent form embeds no list arch.
         if not visible_names:
             list_view = self.env["ir.ui.view"].search(
-                [("model", "=", self.line_model_id.model), ("type", "=", "list"), ("active", "=", True)],
+                [("model", "=", self.line_model_id.model), ("type", "=", "tree"), ("active", "=", True)],
                 order="priority, id",
                 limit=1,
             )
