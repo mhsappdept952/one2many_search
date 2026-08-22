@@ -1,248 +1,253 @@
-/** @odoo-module **/
+odoo.define("nexmosaic_one2many_search.x2many_search", function (require) {
+    "use strict";
 
-import { patch } from "@web/core/utils/patch";
-import { useService } from "@web/core/utils/hooks";
-import { X2ManyField } from "@web/views/fields/x2many/x2many_field";
-import { onWillDestroy, onWillStart, useState } from "@odoo/owl";
+    const core = require("web.core");
+    const relationalFields = require("web.relational_fields");
 
-function valueMatches(value, term) {
-    if (value === false || value === null || value === undefined) {
-        return false;
+    const FieldOne2Many = relationalFields.FieldOne2Many;
+    const qweb = core.qweb;
+
+    function valueMatches(value, term) {
+        if (value === false || value === null || value === undefined) {
+            return false;
+        }
+        if (Array.isArray(value)) {
+            return value.some((item) => valueMatches(item, term));
+        }
+        if (typeof value === "object") {
+            return valueMatches(value.display_name || value.name || value.data || "", term);
+        }
+        return String(value).toLocaleLowerCase().includes(term);
     }
-    if (Array.isArray(value)) {
-        return value.some((item) => valueMatches(item, term));
-    }
-    if (typeof value === "object") {
-        return valueMatches(value.display_name || value.name || "", term);
-    }
-    return String(value).toLocaleLowerCase().includes(term);
-}
 
-patch(X2ManyField.prototype, "nexmosaic_one2many_search.X2ManyField", {
-    setup() {
-        this._super(...arguments);
-        this.orm = useService("orm");
-        this.searchState = useState({
-            enabled: false,
-            fields: [],
-            placeholder: "",
-            term: "",
-            matchingIds: null,
-            loading: false,
-            selectedFieldName: false,
-            selectedFieldLabel: "",
-            selectedTerm: "",
-            showSuggestions: false,
-            highlightedSuggestion: -1,
-        });
-        this._searchTimer = null;
-        this._searchRequest = 0;
+    FieldOne2Many.include({
+        init: function () {
+            this._super.apply(this, arguments);
+            this._o2mSearchState = {
+                enabled: false,
+                fields: [],
+                placeholder: "",
+                term: "",
+                matchingDataPointIds: null,
+                loading: false,
+                selectedFieldName: false,
+                selectedFieldLabel: "",
+                selectedTerm: "",
+                showSuggestions: false,
+                highlightedSuggestion: -1,
+            };
+            this._o2mSearchRequest = 0;
+        },
 
-        onWillStart(async () => {
-            if (this.isMany2Many || this.viewMode !== "list") {
+        willStart: function () {
+            const parent = this._super.apply(this, arguments);
+            if (!this.view || this.view.arch.tag !== "tree") {
+                return parent;
+            }
+            const configuration = this._rpc({
+                model: "one2many.search.configuration",
+                method: "get_field_search_configuration",
+                args: [this.record.model, this.name],
+            }).then((result) => {
+                if (result) {
+                    Object.assign(this._o2mSearchState, {
+                        enabled: true,
+                        fields: result.fields,
+                        placeholder: result.placeholder,
+                    });
+                }
+            });
+            return Promise.all([parent, configuration]);
+        },
+
+        _render: function () {
+            const rendered = this._super.apply(this, arguments);
+            return Promise.resolve(rendered).then(() => {
+                this._renderO2mSearch();
+                this._applyO2mSearchFilter();
+            });
+        },
+
+        _o2mSearchSuggestions: function () {
+            return [{ name: false, label: "all configured fields" }].concat(
+                this._o2mSearchState.fields
+            );
+        },
+
+        _renderO2mSearch: function () {
+            this.$(".o_o2m_search").remove();
+            if (!this._o2mSearchState.enabled || !this.view || this.view.arch.tag !== "tree") {
                 return;
             }
-            const configuration = await this.orm.call(
-                "one2many.search.configuration",
-                "get_field_search_configuration",
-                [this.props.record.resModel, this.props.name]
+            const $search = $(
+                qweb.render("nexmosaic_one2many_search.LegacyX2ManySearch", {
+                    widget: this,
+                })
             );
-            if (configuration) {
-                Object.assign(this.searchState, {
-                    enabled: true,
-                    fields: configuration.fields,
-                    placeholder: configuration.placeholder,
-                });
-            }
-        });
-        onWillDestroy(() => clearTimeout(this._searchTimer));
-    },
-
-    get hasActiveSearch() {
-        return Boolean(this.searchState.enabled && this.searchState.matchingIds !== null);
-    },
-
-    get showO2mSearchSuggestions() {
-        return Boolean(
-            this.searchState.showSuggestions && this.searchState.term.trim() && this.searchState.fields.length
-        );
-    },
-
-    get o2mSearchSuggestions() {
-        return [
-            { name: false, label: "all configured fields" },
-            ...this.searchState.fields,
-        ];
-    },
-
-    get searchResultCount() {
-        return this.searchState.matchingIds ? this.searchState.matchingIds.length : 0;
-    },
-
-    get searchList() {
-        if (!this.hasActiveSearch || !this.searchState.matchingIds) {
-            return this.list;
-        }
-        const matchingIds = new Set(this.searchState.matchingIds);
-        const records = this.list.currentIds
-            .filter((id) => matchingIds.has(id))
-            .map((id) => this._recordForLineId(id))
-            .filter(Boolean);
-        const overrides = {
-            records,
-            count: records.length,
-            limit: records.length,
-            offset: 0,
-        };
-        return new Proxy(this.list, {
-            get(target, property) {
-                if (property in overrides) {
-                    return overrides[property];
-                }
-                const value = Reflect.get(target, property, target);
-                return typeof value === "function" ? value.bind(target) : value;
-            },
-        });
-    },
-
-    get rendererProps() {
-        const props = this._super(...arguments);
-        if (this.hasActiveSearch && this.searchState.matchingIds) {
-            props.list = this.searchList;
-        }
-        return props;
-    },
-
-    onO2mSearchInput(event) {
-        this.searchState.term = event.target.value;
-        this.searchState.selectedFieldName = false;
-        this.searchState.selectedFieldLabel = "";
-        this.searchState.selectedTerm = "";
-        this.searchState.showSuggestions = true;
-        this.searchState.highlightedSuggestion = -1;
-        this.searchState.matchingIds = null;
-        this.searchState.loading = false;
-        this._searchRequest++;
-        clearTimeout(this._searchTimer);
-        if (!this.searchState.term.trim()) {
-            this.searchState.showSuggestions = false;
-            return;
-        }
-    },
-
-    onO2mSearchKeydown(event) {
-        if (!this.showO2mSearchSuggestions) {
-            return;
-        }
-        const suggestions = this.o2mSearchSuggestions;
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            if (event.key === "ArrowDown") {
-                this.searchState.highlightedSuggestion =
-                    (this.searchState.highlightedSuggestion + 1) % suggestions.length;
+            const $controlPanel = this.$(".o_x2m_control_panel").first();
+            if ($controlPanel.length) {
+                $controlPanel.after($search);
             } else {
-                this.searchState.highlightedSuggestion =
-                    this.searchState.highlightedSuggestion <= 0
-                        ? suggestions.length - 1
-                        : this.searchState.highlightedSuggestion - 1;
+                this.$el.prepend($search);
             }
-        } else if (event.key === "Enter") {
-            event.preventDefault();
-            const suggestion = suggestions[this.searchState.highlightedSuggestion];
-            if (suggestion) {
-                this.selectO2mSearchField(suggestion.name, suggestion.label);
-            }
-        } else if (event.key === "Escape") {
-            event.preventDefault();
-            this.searchState.showSuggestions = false;
-        }
-    },
-
-    selectO2mSearchField(fieldName, fieldLabel) {
-        const term = this.searchState.term.trim();
-        this.searchState.selectedFieldName = fieldName;
-        this.searchState.selectedFieldLabel = fieldLabel;
-        this.searchState.selectedTerm = term;
-        this.searchState.term = "";
-        this.searchState.showSuggestions = false;
-        clearTimeout(this._searchTimer);
-        if (term) {
-            this.searchState.loading = true;
-            this.searchState.matchingIds = [];
-            this._runO2mSearch(term);
-        }
-    },
-
-    selectAllO2mSearchFields() {
-        this.selectO2mSearchField(false, "all configured fields");
-    },
-
-    clearO2mSearch() {
-        clearTimeout(this._searchTimer);
-        this._searchRequest++;
-        this.searchState.term = "";
-        this.searchState.matchingIds = null;
-        this.searchState.loading = false;
-        this.searchState.selectedFieldName = false;
-        this.searchState.selectedFieldLabel = "";
-        this.searchState.selectedTerm = "";
-        this.searchState.showSuggestions = false;
-    },
-
-    async _runO2mSearch(term) {
-        const request = ++this._searchRequest;
-        const lineIds = this.list.currentIds.filter((id) => typeof id === "number");
-        const fieldNames = this.searchState.selectedFieldName
-            ? [this.searchState.selectedFieldName]
-            : this.searchState.fields.map((field) => field.name);
-        try {
-            const matchingStoredIds = new Set(
-                await this.orm.call("one2many.search.configuration", "search_line_ids", [
-                    this.props.record.resModel,
-                    this.props.name,
-                    lineIds,
-                    term,
-                    fieldNames,
-                ])
+            $search.on("input", ".o_o2m_search_input", this._onO2mSearchInput.bind(this));
+            $search.on("keydown", ".o_o2m_search_input", this._onO2mSearchKeydown.bind(this));
+            $search.on(
+                "mousedown",
+                ".o_o2m_search_suggestion",
+                this._onO2mSearchSuggestion.bind(this)
             );
-            if (request !== this._searchRequest) {
+            $search.on("click", ".o_o2m_search_clear", this._clearO2mSearch.bind(this));
+        },
+
+        _onO2mSearchInput: function (event) {
+            const state = this._o2mSearchState;
+            state.term = event.target.value;
+            state.selectedFieldName = false;
+            state.selectedFieldLabel = "";
+            state.selectedTerm = "";
+            state.showSuggestions = Boolean(state.term.trim());
+            state.highlightedSuggestion = -1;
+            state.matchingDataPointIds = null;
+            state.loading = false;
+            this._o2mSearchRequest += 1;
+            this._renderO2mSearch();
+            this._applyO2mSearchFilter();
+            if (state.showSuggestions) {
+                this.$(".o_o2m_search_input").focus();
+                const input = this.$(".o_o2m_search_input").get(0);
+                input.setSelectionRange(input.value.length, input.value.length);
+            }
+        },
+
+        _onO2mSearchKeydown: function (event) {
+            const state = this._o2mSearchState;
+            if (!state.showSuggestions) {
                 return;
             }
-            await this._loadMatchingRecords(matchingStoredIds);
-            const normalizedTerm = term.toLocaleLowerCase();
-            const matchingIds = this.list.currentIds.filter((id) => {
-                const record = this._recordForLineId(id);
-                if (!record || (!record.isNew && !record.isDirty)) {
-                    return matchingStoredIds.has(id);
+            const suggestions = this._o2mSearchSuggestions();
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                if (event.key === "ArrowDown") {
+                    state.highlightedSuggestion =
+                        (state.highlightedSuggestion + 1) % suggestions.length;
+                } else {
+                    state.highlightedSuggestion =
+                        state.highlightedSuggestion <= 0
+                            ? suggestions.length - 1
+                            : state.highlightedSuggestion - 1;
                 }
-                return fieldNames.some((fieldName) =>
-                    valueMatches(record.data[fieldName], normalizedTerm)
+                this.$(".o_o2m_search_suggestion").removeClass("active");
+                this.$(".o_o2m_search_suggestion")
+                    .eq(state.highlightedSuggestion)
+                    .addClass("active");
+            } else if (event.key === "Enter") {
+                event.preventDefault();
+                const suggestion = suggestions[state.highlightedSuggestion];
+                if (suggestion) {
+                    this._selectO2mSearchField(suggestion.name, suggestion.label);
+                }
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                state.showSuggestions = false;
+                this.$(".o_o2m_search_suggestions").removeClass("show");
+            }
+        },
+
+        _onO2mSearchSuggestion: function (event) {
+            event.preventDefault();
+            const $target = $(event.currentTarget);
+            this._selectO2mSearchField(
+                $target.attr("data-field") || false,
+                $target.attr("data-label")
+            );
+        },
+
+        _selectO2mSearchField: function (fieldName, fieldLabel) {
+            const state = this._o2mSearchState;
+            const term = state.term.trim();
+            state.selectedFieldName = fieldName;
+            state.selectedFieldLabel = fieldLabel;
+            state.selectedTerm = term;
+            state.term = "";
+            state.showSuggestions = false;
+            if (!term) {
+                return;
+            }
+            state.loading = true;
+            state.matchingDataPointIds = new Set();
+            this._renderO2mSearch();
+            this._runO2mSearch(term);
+        },
+
+        _clearO2mSearch: function (event) {
+            if (event) {
+                event.preventDefault();
+            }
+            this._o2mSearchRequest += 1;
+            Object.assign(this._o2mSearchState, {
+                term: "",
+                matchingDataPointIds: null,
+                loading: false,
+                selectedFieldName: false,
+                selectedFieldLabel: "",
+                selectedTerm: "",
+                showSuggestions: false,
+                highlightedSuggestion: -1,
+            });
+            this._renderO2mSearch();
+            this._applyO2mSearchFilter();
+        },
+
+        _runO2mSearch: async function (term) {
+            const request = ++this._o2mSearchRequest;
+            const state = this._o2mSearchState;
+            const records = (this.value && this.value.data) || [];
+            const lineIds = ((this.value && this.value.res_ids) || []).filter(
+                (id) => typeof id === "number"
+            );
+            const fieldNames = state.selectedFieldName
+                ? [state.selectedFieldName]
+                : state.fields.map((field) => field.name);
+            try {
+                const storedIds = new Set(
+                    await this._rpc({
+                        model: "one2many.search.configuration",
+                        method: "search_line_ids",
+                        args: [this.record.model, this.name, lineIds, term, fieldNames],
+                    })
+                );
+                if (request !== this._o2mSearchRequest) {
+                    return;
+                }
+                const normalizedTerm = term.toLocaleLowerCase();
+                const matchingDataPointIds = new Set();
+                records.forEach((record) => {
+                    const localMatch = fieldNames.some((fieldName) =>
+                        valueMatches(record.data[fieldName], normalizedTerm)
+                    );
+                    if ((record.res_id && storedIds.has(record.res_id)) || localMatch) {
+                        matchingDataPointIds.add(String(record.id));
+                    }
+                });
+                state.matchingDataPointIds = matchingDataPointIds;
+            } finally {
+                if (request === this._o2mSearchRequest) {
+                    state.loading = false;
+                    this._renderO2mSearch();
+                    this._applyO2mSearchFilter();
+                }
+            }
+        },
+
+        _applyO2mSearchFilter: function () {
+            const matchingIds = this._o2mSearchState.matchingDataPointIds;
+            this.$("tr.o_data_row").each(function () {
+                const $row = $(this);
+                $row.toggle(
+                    matchingIds === null || matchingIds.has(String($row.attr("data-id")))
                 );
             });
-            if (request === this._searchRequest) {
-                this.searchState.matchingIds = matchingIds;
-            }
-        } finally {
-            if (request === this._searchRequest) {
-                this.searchState.loading = false;
-            }
-        }
-    },
-
-    async _loadMatchingRecords(matchingStoredIds) {
-        const recordsToLoad = [...matchingStoredIds].filter(
-            (id) => !this.list._mapping[id]
-        );
-        await Promise.all(
-            recordsToLoad.map(async (id) => {
-                const record = this.list._createRecord({ resId: id, mode: "readonly" });
-                await record.load();
-            })
-        );
-    },
-
-    _recordForLineId(id) {
-        const recordId = this.list._mapping[id];
-        return recordId ? this.list._cache[recordId] : undefined;
-    },
+        },
+    });
 });

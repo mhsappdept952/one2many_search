@@ -36,7 +36,7 @@
                         </group>
                     </group>
                     <group col="1">
-                        <div class="d-flex align-items-center gap-3">
+                        <div class="d-flex align-items-center" style="gap: 1rem;">
                             <label for="searchable_field_ids" class="o_form_label mb-0 text-nowrap"/>
                             <field name="searchable_field_ids" widget="many2many_tags" class="flex-grow-1"
                                    domain="[('model_id', '=', line_model_id), ('store', '=', True)]"
