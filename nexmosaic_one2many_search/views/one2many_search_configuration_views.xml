@@ -44,7 +44,7 @@
                             <button name="action_suggest_searchable_fields" type="object"
                                     string="Use Visible List Columns"
                                     class="btn-primary text-nowrap"
-                                    invisible="not line_model_id"/>
+                                    attrs="{'invisible': [('line_model_id', '=', False)]}"/>
                         </div>
                     </group>
                     <div class="text-muted">

@@ -18,9 +18,9 @@ function valueMatches(value, term) {
     return String(value).toLocaleLowerCase().includes(term);
 }
 
-patch(X2ManyField.prototype, {
+patch(X2ManyField.prototype, "nexmosaic_one2many_search.X2ManyField", {
     setup() {
-        super.setup(...arguments);
+        this._super(...arguments);
         this.orm = useService("orm");
         this.searchState = useState({
             enabled: false,
@@ -39,7 +39,7 @@ patch(X2ManyField.prototype, {
         this._searchRequest = 0;
 
         onWillStart(async () => {
-            if (this.isMany2Many || this.props.viewMode !== "list") {
+            if (this.isMany2Many || this.viewMode !== "list") {
                 return;
             }
             const configuration = await this.orm.call(
@@ -86,7 +86,7 @@ patch(X2ManyField.prototype, {
         const matchingIds = new Set(this.searchState.matchingIds);
         const records = this.list.currentIds
             .filter((id) => matchingIds.has(id))
-            .map((id) => this.list._cache[id])
+            .map((id) => this._recordForLineId(id))
             .filter(Boolean);
         const overrides = {
             records,
@@ -106,7 +106,7 @@ patch(X2ManyField.prototype, {
     },
 
     get rendererProps() {
-        const props = super.rendererProps;
+        const props = this._super(...arguments);
         if (this.hasActiveSearch && this.searchState.matchingIds) {
             props.list = this.searchList;
         }
@@ -211,8 +211,8 @@ patch(X2ManyField.prototype, {
             await this._loadMatchingRecords(matchingStoredIds);
             const normalizedTerm = term.toLocaleLowerCase();
             const matchingIds = this.list.currentIds.filter((id) => {
-                const record = this.list._cache[id];
-                if (!record || (!record.isNew && !record.dirty)) {
+                const record = this._recordForLineId(id);
+                if (!record || (!record.isNew && !record.isDirty)) {
                     return matchingStoredIds.has(id);
                 }
                 return fieldNames.some((fieldName) =>
@@ -230,16 +230,19 @@ patch(X2ManyField.prototype, {
     },
 
     async _loadMatchingRecords(matchingStoredIds) {
-        const recordsToLoad = [...matchingStoredIds].filter((id) => !this.list._cache[id]);
-        if (!recordsToLoad.length) {
-            return;
-        }
-        const values = await this.list.model._loadRecords(
-            { ...this.list.config, resIds: recordsToLoad },
-            this.list.evalContext
+        const recordsToLoad = [...matchingStoredIds].filter(
+            (id) => !this.list._mapping[id]
         );
-        for (const value of values) {
-            this.list._createRecordDatapoint(value);
-        }
+        await Promise.all(
+            recordsToLoad.map(async (id) => {
+                const record = this.list._createRecord({ resId: id, mode: "readonly" });
+                await record.load();
+            })
+        );
+    },
+
+    _recordForLineId(id) {
+        const recordId = this.list._mapping[id];
+        return recordId ? this.list._cache[recordId] : undefined;
     },
 });
