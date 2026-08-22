@@ -4,6 +4,7 @@ from lxml import etree
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.osv import expression
 
 
 SEARCHABLE_TYPES = {
@@ -60,10 +61,13 @@ class One2manySearchConfiguration(models.Model):
         help="The direct fields on the line model that are searched. Only fields the current user can access are used.",
     )
 
-    _one_configuration_per_field = models.Constraint(
-        "UNIQUE(model_id, field_id)",
-        "Only one search configuration is allowed for each One2many field.",
-    )
+    _sql_constraints = [
+        (
+            "one_configuration_per_field",
+            "UNIQUE(model_id, field_id)",
+            "Only one search configuration is allowed for each One2many field.",
+        ),
+    ]
 
     @api.depends("model_id", "field_id")
     def _compute_name(self):
@@ -135,7 +139,7 @@ class One2manySearchConfiguration(models.Model):
 
     def _accessible_searchable_fields(self):
         self.ensure_one()
-        user_groups = self.env.user.group_ids
+        user_groups = self.env.user.groups_id
         return self.searchable_field_ids.filtered(
             lambda field: not field.groups or bool(field.groups & user_groups)
         )
@@ -144,18 +148,18 @@ class One2manySearchConfiguration(models.Model):
     def _field_search_domain(field, search_term):
         """Use exact matching for numbers, whose formatted values contain trailing zeroes."""
         if field.ttype not in NUMERIC_SEARCHABLE_TYPES:
-            return fields.Domain(field.name, "ilike", search_term)
+            return [(field.name, "ilike", search_term)]
         try:
             numeric_value = Decimal(search_term)
         except InvalidOperation:
-            return fields.Domain.FALSE
+            return expression.FALSE_DOMAIN
         if field.ttype == "integer":
             if numeric_value != numeric_value.to_integral_value():
-                return fields.Domain.FALSE
+                return expression.FALSE_DOMAIN
             numeric_value = int(numeric_value)
         else:
             numeric_value = float(numeric_value)
-        return fields.Domain(field.name, "=", numeric_value)
+        return [(field.name, "=", numeric_value)]
 
     def action_suggest_searchable_fields(self):
         """Select direct line fields visible in the first matching parent form view."""
@@ -245,9 +249,9 @@ class One2manySearchConfiguration(models.Model):
         search_term = term.strip()
         if not search_term:
             return line_ids
-        field_domain = fields.Domain.OR(
+        field_domain = expression.OR(
             [self._field_search_domain(field, search_term) for field in searchable_fields]
         )
         return self.env[configuration.line_model_id.model].search(
-            fields.Domain("id", "in", line_ids) & field_domain
+            expression.AND([[('id', 'in', line_ids)], field_domain])
         ).ids
